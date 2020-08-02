@@ -1,0 +1,232 @@
+<html>
+	<head>
+		<style>
+			.strokes {
+				stroke-width: 2;
+				fill: none
+			}
+
+			.labels {
+			  fill: blue;
+			  font-weight: bold;
+			  font-family:arial;
+			  font-size:0.6em;
+			}
+
+			#legend text {
+			  font-size: 0.9em;
+			  color: #333;
+			  font-weight: 400;
+			}
+
+			div.tooltip {
+			  color: #222; 
+			  background: #fff; 
+			  border-radius: 3px; 
+			  box-shadow: 0px 0px 2px 0px #a6a6a6; 
+			  padding: .2em; 
+			  text-shadow: #f5f5f5 0 1px 0;
+			  opacity: 0.9; 
+			  position: absolute;
+			}
+			
+			path.line-0 {
+				fill: none;
+				stroke-width: 2;
+				stroke: red;
+			}
+			
+			path.line-1 {
+				fill: none;
+				stroke-width: 2;
+				stroke: blue;
+			}
+
+			text.label-0 {
+				fill: red;
+				font-weight: bold;
+			}
+			
+			text.label-1 {
+				fill: blue;
+				font-weight: bold;
+			}
+			</style>
+		<script src="https://d3js.org/d3.v5.min.js"></script>
+		<script>
+			async function ready() {
+				var dropdown = d3.select("#statedropdown");
+				
+				const covidData = await d3.csv("us-states.csv");
+				const states = covidData.filter(row => row["date"] == "2020-08-01")
+											.sort((row1, row2) => (row1.state > row2.state ? 1 : -1))
+											.map(x => x.state);
+				
+				dropdown.selectAll("option")
+					.data(states)
+					.enter()
+					.append("option")
+					.text((d,i) => d)
+					.attr("value", (d,i) => d );
+
+				dropdown.on("change", function(d) {
+								var state = d3.select(this).property("value");
+								updateCovidTimeGraph(covidData, state);				
+							});
+				updateCovidTimeGraph(covidData, states[0]);
+			}
+			
+			function updateCovidTimeGraph(covidData, state) {
+			
+				const height = 800;
+				const width = 1000;
+				const margin = 50;
+
+				var tooltip = d3.select("div.tooltip");
+				var tp = d3.timeParse("%Y-%m-%d");
+				var svg = d3.select("svg");
+
+				d3.selectAll("g").remove();
+
+				const legendColors = ["red", "blue"];
+				const legendText = ["cases", "deaths"];
+
+				var stateData = covidData.filter(row => (row.state == state));
+				stateData.forEach(row => { row.date = tp(row.date); });
+
+				var casesData = stateData.map(function(row) { return {"date": row.date, "magnitude": row.cases }; });
+
+				var deathsData = stateData.map(function(row) { return {"date": row.date, "magnitude": row.deaths }; });
+
+				var data = [{"id": "Total Cases", "values": casesData},{"id": "Total Deaths", "values": deathsData}];
+
+				var dates = d3.extent(stateData, (d) => d.date);
+				var ys = d3.scaleLinear().domain([0, stateData[stateData.length - 1].cases]).range([height, 0]);
+				var xs = d3.scaleTime().domain(dates).range([0, width]);
+				
+				svg.append("g").attr("transform", "translate(" + margin + ", " + margin + ")"); 
+
+				svg.append("g").attr("transform", "translate(" + margin + ", " + margin + ")")
+					.call(
+						d3.axisLeft(ys)
+						.ticks(10)
+						.tickFormat(d3.format("~s"))
+					);
+
+				svg.append("g").attr("transform", "translate(" + margin + ", " + (height + margin) + ")")
+					.call(
+						d3.axisBottom(xs)
+						.ticks(d3.timeDay.every(7))
+						.tickFormat(d3.timeFormat("%b%d"))
+					);
+
+				const line = d3.line()
+								.x((d) => xs(d.date) )
+								.y((d) => ys(d.magnitude) );
+
+				let id = 0;
+				const ids = function () {
+					return "line-"+id++;
+				}
+				let ed = 0;
+				const eds = function () {
+					return "label-"+ed++;
+				}
+
+				const paths = svg.selectAll("paths")
+					.data(data)
+					.enter()
+					.append("g");
+					
+				paths.append("path")
+					.attr("transform", "translate(" + margin + ", " + margin + ")")
+					.attr("class", ids)
+					.attr("d", function(d) { return line(d.values) });
+	
+				paths.append("text")
+					.datum(function(d) { 
+								return {"id": d.id, "value": d.values[d.values.length - 1]}; })
+					.attr("class", eds)
+					.attr("transform", function(d) { 
+												return "translate(" + (xs(d.value.date) + 5) 
+												+ "," + (ys(d.value.magnitude) + 25) + ")"; })
+					.attr("x", 5)
+					.text((d) => d.id);
+	
+				svg.append("g")
+					.attr("transform", "translate(" + margin + ", " + margin + ")")
+					.selectAll(".point")
+					.data(stateData)
+					.enter().append("circle")
+					.attr("cx", (d, i) => xs(d.date))
+					.attr("cy", (d, i) => ys(d.cases))
+					.attr("r", 3)
+					.attr("fill", "red")
+					.on("mouseover", (d, i) => {
+							tooltip.transition().duration(200).style("opacity", 0.9);
+							return tooltip.style("hidden", false)
+								.style("left", (d3.event.pageX + 20)+"px")
+								.style("top", (d3.event.pageY - 40)+"px")
+								.html("<b>" + d.state + "<br/>" + "Total Cases: " + d.cases + "<br/>" + "Date: " + d3.timeFormat("%b %d")(d.date) + "</b>");
+					})
+					.on("mousemove", (d, i) => {
+							tooltip.transition().duration(200).style("opacity", 0.9);
+							return tooltip.style("hidden", false)
+								.style("left", (d3.event.pageX + 20)+"px")
+								.style("top", (d3.event.pageY - 40)+"px")
+								.html("<b>" + d.state + "<br/>" + "Total Cases:  " + d.cases + "<br/>" + "Date: " + d3.timeFormat("%b %d")(d.date) + "</b>");
+					})
+					.on("mouseout", (d, i) => {
+							tooltip.transition().duration(200).style("opacity", 0);
+							tooltip.style("hidden", true).html('');
+					});
+				
+				svg.append("g")
+					.attr("transform", "translate(" + margin + ", " + margin + ")")
+					.selectAll(".point")
+					.data(stateData)
+					.enter().append("circle")
+					.attr("cx", (d, i) => xs(d.date))
+					.attr("cy", (d, i) => ys(d.deaths))
+					.attr("r", 3)
+					.attr("fill", "blue")
+					.on("mouseover", (d, i) => {
+							tooltip.transition().duration(200).style("opacity", 0.9);
+							return tooltip.style("hidden", false)
+								.style("left", (d3.event.pageX + 20)+"px")
+								.style("top", (d3.event.pageY - 40)+"px")
+								.html("<b>" + d.state + "<br/>" + "Total Deaths: " + d.deaths + "<br/>" + "Date: " + d3.timeFormat("%b %d")(d.date) + "</b>");
+					})
+					.on("mousemove", (d, i) => {
+							tooltip.transition().duration(200).style("opacity", 0.9);
+							return tooltip.style("hidden", false)
+								.style("left", (d3.event.pageX + 20)+"px")
+								.style("top", (d3.event.pageY - 40)+"px")
+								.html("<b>" + d.state + "<br/>" + "Total Cases:  " + d.deaths + "<br/>" + "Date: " + d3.timeFormat("%b %d")(d.date) + "</b>");
+					})
+					.on("mouseout", (d, i) => {
+							tooltip.transition().duration(200).style("opacity", 0);
+							tooltip.style("hidden", true).html('');
+					});
+			}
+		</script>
+	</head>
+	<body>
+		<div>
+			<h1>A timeline for US State Total Covid Cases & Deaths</h1>
+			<div>
+				<span id="first" width="100"><b><a href="index.html">First</a></b><span>
+			</div>
+			<div>Select State:
+				<select id="statedropdown" style="width: 250px">
+				</select>
+			</div>
+			<svg width="1100" height="900"></svg>
+			<div class="tooltip"></div>
+			<h3>Source: New York Times</h3>
+		</div>
+		<script>
+			ready();
+		</script>
+	</body>
+</html>

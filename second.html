@@ -1,0 +1,171 @@
+<html>
+	<head>
+		<style>
+
+			.labels {
+			  fill: blue;
+			  font-weight: bold;
+			  font-family:arial;
+			  font-size:0.6em;
+			}
+
+			#legend text {
+			  font-size: 0.9em;
+			  color: #333;
+			  font-weight: 400;
+			}
+
+			div.tooltip {
+			  color: #222; 
+			  background: #fff; 
+			  border-radius: 3px; 
+			  box-shadow: 0px 0px 2px 0px #a6a6a6; 
+			  padding: .2em; 
+			  text-shadow: #f5f5f5 0 1px 0;
+			  opacity: 0.9; 
+			  position: absolute;
+			}
+			</style>
+		<script src="https://d3js.org/d3.v5.min.js"></script>
+		<script>
+			async function ready() {
+				const height = 600;
+				const width = 800;
+				const margin = 50;
+				svg = d3.select("svg");
+				svg.append("g").attr("transform", "translate(" + margin + ", " + margin + ")"); 
+				var tooltip = d3.select("div.tooltip");
+
+				const covidData = await d3.csv("us-states.csv");
+				const stateCoords = await d3.tsv("us-states-coordinates.tsv");
+
+				const filteredData = covidData.filter(row => row["date"] == "2020-08-01")
+											.sort((row1, row2) => (+row2.cases > +row1.cases ? 1 : -1)).slice(0,10);
+				
+				var stateShortNameMap = {};
+				for (index in stateCoords) {
+					stateShortNameMap[stateCoords[index]["name"]] = stateCoords[index]["state"];
+				}
+				
+				for (index in filteredData) {
+					filteredData[index]["name"] = stateShortNameMap[filteredData[index]["state"]];
+				}
+
+				const legendColors = ["red", "blue"];
+				const legendText = ["cases", "deaths"];
+				const states = filteredData.map(x => x["name"]);
+				var ys = d3.scaleLinear().domain([0, 500000]).range([600, 0]);
+				var xs = d3.scaleBand().domain(states).range([0, 800]);
+
+				svg.append("g").attr("transform", "translate(" + margin + ", " + margin + ")")
+					.call(d3.axisLeft(ys)
+					.tickValues([100000,200000,300000,400000,500000])
+					.tickFormat(d3.format("~s")));
+
+				svg.append("g").attr("transform", "translate(" + margin + ", " + (height + margin) + ")")
+					.call(d3.axisBottom(xs)
+					.tickValues(states));
+
+				svg.append("g")
+					.attr("transform", "translate(" + margin + ", " + margin + ")")
+					.selectAll("rect")
+					.data(filteredData)
+					.enter()
+					.append("rect")
+					.attr("x", (d,i) => xs(d.name) + xs.bandwidth()/4)
+					.attr("y", (d,i) => ys(d.cases))
+					.attr("width", xs.bandwidth()/4)
+					.attr("height", (d,i) => 600-ys(d.cases))
+					.style("fill", legendColors[0])
+					.on("mouseover", (d, i) => {
+							tooltip.transition().duration(200).style("opacity", 0.9);
+							return tooltip.style("hidden", false)
+								.style("left", (d3.event.pageX + 20)+"px")
+								.style("top", (d3.event.pageY - 40)+"px")
+								.html("<b>" + d.state + "<br/>" + "Total Cases: " + d.cases + "</b>");
+					})
+					.on("mousemove", (d, i) => {
+							tooltip.transition().duration(200).style("opacity", 0.9);
+							return tooltip.style("hidden", false)
+								.style("left", (d3.event.pageX + 20)+"px")
+								.style("top", (d3.event.pageY - 40)+"px")
+								.html("<b>" + d.state + "<br/>" + "Total Cases:  " + d.cases + "</b>");
+					})
+					.on("mouseout", (d, i) => {
+							tooltip.transition().duration(200).style("opacity", 0);
+							tooltip.style("hidden", true).html('');
+					});
+
+
+				svg.append("g")
+					.attr("transform", "translate(" + margin + ", " + margin + ")")
+					.selectAll("rect")
+					.data(filteredData)
+					.enter()
+					.append("rect")
+					.attr("x", (d,i) => xs(d.name) + xs.bandwidth()/2)
+					.attr("y", (d,i) => ys(d.deaths))
+					.attr("width", xs.bandwidth()/4)
+					.attr("height", (d,i) => 600-ys(d.deaths))
+					.style("fill", legendColors[1])
+					.on("mouseover", (d, i) => {
+							tooltip.transition().duration(200).style("opacity", 0.9);
+							return tooltip.style("hidden", false)
+								.style("left", (d3.event.pageX + 20)+"px")
+								.style("top", (d3.event.pageY - 40)+"px")
+								.html("<b>" + d.state + "<br/>" + "Total Deaths: " + d.deaths + "</b>");
+					})
+					.on("mousemove", (d, i) => {
+							tooltip.transition().duration(200).style("opacity", 0.9);
+							return tooltip.style("hidden", false)
+								.style("left", (d3.event.pageX + 20)+"px")
+								.style("top", (d3.event.pageY - 40)+"px")
+								.html("<b>" + d.state + "<br/>" + "Total Deaths:  " + d.deaths + "</b>");
+					})
+					.on("mouseout", (d, i) => {
+							tooltip.transition().duration(200).style("opacity", 0);
+							tooltip.style("hidden", true).html('');
+					});
+
+				var legend = svg.append("g").attr("id", "legend");
+
+				var legenditem = legend.selectAll(".legenditem")
+					.data(d3.range(2))
+					.enter()
+					.append("g")
+					.attr("class", "legenditem")
+					.attr("transform", (d, i) => "translate(" + i * 40 + ",40)");
+
+				legenditem.append("rect")
+					.attr("x", width - 100)
+					.attr("y", 105)
+					.attr("width", 40)
+					.attr("height", 6)
+					.attr("class", "rect")
+					.style("fill", (d, i) => legendColors[i] );
+
+				legenditem.append("text")
+					.attr("x", width - 100)
+					.attr("y", 100)
+					.text((d, i) => legendText[i] );
+
+			}
+		</script>
+	</head>
+	<body>
+		<div>
+			<h1>US States Total Covid Cases & Deaths comparison</h1>
+			<div>
+				<span id="Previous" width="100"><b><a href="index.html">Previous</a></b><span>
+				<span id="Next" width="100"><b><a href="third.html">Next</a></b><span>
+			</div>
+			<svg width="900" height="700"></svg>
+			<div class="tooltip"></div>
+			<h3>Source: New York Times</h3>
+		</div>
+		
+		<script>
+			ready();
+		</script>
+	</body>
+</html>
