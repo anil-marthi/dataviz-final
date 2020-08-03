@@ -41,6 +41,11 @@
 
 				const filteredData = covidData.filter(row => row["date"] == "2020-08-01")
 											.sort((row1, row2) => (+row2.cases > +row1.cases ? 1 : -1)).slice(0,10);
+				filteredData.forEach(state => {
+							var popData = stateCoords.filter(row => row["name"] == state["state"])[0];
+							state["population"] = popData["population"];
+							state["populationDensity"] = popData["populationDensity"];
+				});
 				
 				var stateShortNameMap = {};
 				for (index in stateCoords) {
@@ -82,14 +87,14 @@
 							return tooltip.style("hidden", false)
 								.style("left", (d3.event.pageX + 20)+"px")
 								.style("top", (d3.event.pageY - 40)+"px")
-								.html("<b>" + d.state + "<br/>" + "Total Cases: " + d.cases + "</b>");
+								.html("<b>" + d.state + "<br/>" + "Total Cases: " + d.cases + "<br/>" + "Population: " + d.population + "<br/>" + "Population Density: " + d.populationDensity + " per sq. mi.</b>");
 					})
 					.on("mousemove", (d, i) => {
 							tooltip.transition().duration(200).style("opacity", 0.9);
 							return tooltip.style("hidden", false)
 								.style("left", (d3.event.pageX + 20)+"px")
 								.style("top", (d3.event.pageY - 40)+"px")
-								.html("<b>" + d.state + "<br/>" + "Total Cases:  " + d.cases + "</b>");
+								.html("<b>" + d.state + "<br/>" + "Total Cases:  " + d.cases + "<br/>" + "Population: " + d.population + "<br/>" + "Population Density: " + d.populationDensity + " per sq. mi.</b>");
 					})
 					.on("mouseout", (d, i) => {
 							tooltip.transition().duration(200).style("opacity", 0);
@@ -113,14 +118,14 @@
 							return tooltip.style("hidden", false)
 								.style("left", (d3.event.pageX + 20)+"px")
 								.style("top", (d3.event.pageY - 40)+"px")
-								.html("<b>" + d.state + "<br/>" + "Total Deaths: " + d.deaths + "</b>");
+								.html("<b>" + d.state + "<br/>" + "Total Deaths: " + d.deaths + "<br/>" + "Population: " + d.population + "<br/>" + "Population Density: " + d.populationDensity+ " per sq. mi.</b>");
 					})
 					.on("mousemove", (d, i) => {
 							tooltip.transition().duration(200).style("opacity", 0.9);
 							return tooltip.style("hidden", false)
 								.style("left", (d3.event.pageX + 20)+"px")
 								.style("top", (d3.event.pageY - 40)+"px")
-								.html("<b>" + d.state + "<br/>" + "Total Deaths:  " + d.deaths + "</b>");
+								.html("<b>" + d.state + "<br/>" + "Total Deaths:  " + d.deaths + "<br/>" + "Population: " + d.population + "<br/>" + "Population Density: " + d.populationDensity+ " per sq. mi.</b>");
 					})
 					.on("mouseout", (d, i) => {
 							tooltip.transition().duration(200).style("opacity", 0);

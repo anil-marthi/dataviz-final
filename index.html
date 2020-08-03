@@ -2,6 +2,11 @@
 <html>
 	<head>
 		<style>
+			.strokes {
+				stroke-width: 1;
+				stroke: grey
+			}
+
 			.states {
 			  fill: lightblue;
 			}
@@ -57,20 +62,21 @@
 		<script src="https://d3js.org/queue.v1.min.js"></script>
 		<script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
 		<script>
-			function geometry(transform, latitude, longitude, name) {
+			function geometry(transform, latitude, longitude, name, state) {
 				position = [((longitude - transform.translate[0])/transform.scale[0]), ((latitude - transform.translate[1])/transform.scale[1])];
 				return {
 						type: "Point",
 						coordinates: position,
 						properties: {
-							name: name
+							name: name,
+							state: state
 							}
 						};
 			}
 
 			function geometries(transform, stateCoords) {
 				var geometries = [];
-				stateCoords.forEach(state => { if (state.state != "PR" && state.state != "DC") { geometries.push(geometry(transform, state.latitude, state.longitude, state.state)) }});
+				stateCoords.forEach(state => { if (state.state != "PR" && state.state != "DC") { geometries.push(geometry(transform, state.latitude, state.longitude, state.state, state.name)) }});
 				return {
 						type: "GeometryCollection",
 						geometries: geometries
@@ -119,7 +125,7 @@
 			function ready(error, us, covidData, stateCoords) {
 				if (error) throw error;
 			
-				const width = 960;
+				const width = 1060;
 				var projection = d3.geoAlbersUsa().scale(1275).translate([475, 300]);
 				var path1 = d3.geoPath().projection(projection);
 				var svg = d3.select("svg");
@@ -142,10 +148,14 @@
 				us.objects.states.geometries.forEach(state => {
 							state.properties["totalCases"] = stateCovidMap[state.properties["name"]][0];
 							state.properties["totalDeaths"] = stateCovidMap[state.properties["name"]][1];
+							var popData = stateCoords.filter(row => row["name"] == state.properties["name"])[0];
+							state.properties["population"] = popData["population"];
+							state.properties["populationDensity"] = popData["populationDensity"];
 						});
 				us.objects.places = geometries(us.transform, stateCoords);
 
 				svg.append("g")
+					.attr("transform", "translate(200, 0)")
 					.attr("class", "states")
 					.selectAll("path")
 					.data(topojson.feature(us, us.objects.states).features)
@@ -157,14 +167,14 @@
 							return tooltip.style("hidden", false)
 								.style("left", (d3.event.pageX + 20)+"px")
 								.style("top", (d3.event.pageY - 20)+"px")
-								.html("<b>" + d.properties.name + "<br/>" + "Total Cases: " + d.properties.totalCases + "<br/>" + "Total Deaths: " + d.properties.totalDeaths + "</b>");
+								.html("<b>" + d.properties.name + "<br/>" + "Total Cases: " + d.properties.totalCases + "<br/>" + "Total Deaths: " + d.properties.totalDeaths + "<br/>" + "Population: " + d.properties.population + "<br/>" + "Population Density: " + d.properties.populationDensity + " per sq. mi.</b>");
 					})
 					.on("mousemove", (d, i) => {
 							tooltip.transition().duration(200).style("opacity", 0.9);
 							return tooltip.style("hidden", false)
 								.style("left", (d3.event.pageX + 20)+"px")
 								.style("top", (d3.event.pageY - 20)+"px")
-								.html("<b>" + d.properties.name + "<br/>" + "Total Cases:  " + d.properties.totalCases + "<br/>" + "Total Deaths: " + d.properties.totalDeaths + "</b>");
+								.html("<b>" + d.properties.name + "<br/>" + "Total Cases:  " + d.properties.totalCases + "<br/>" + "Total Deaths: " + d.properties.totalDeaths + "<br/>" + "Population: " + d.properties.population + "<br/>" + "Population Density: " + d.properties.populationDensity + " per sq. mi.</b>");
 					})
 
 					.on("mouseout", (d, i) => {
@@ -172,11 +182,13 @@
 							tooltip.style("hidden", true).html('');
 					});
 
-				svg.append("path")
+				svg.append("g").attr("transform", "translate(200, 0)")
+					.append("path")
 					.attr("class", "state-borders")
-					.attr("d", path(topojson.mesh(us, us.objects.states, (a, b) => a !== b )));
+					.attr("d", path(topojson.mesh(us, us.objects.states)));
 
-				svg.selectAll(".labels")
+				svg.append("g").attr("transform", "translate(200, 0)")
+					.selectAll(".labels")
 					.data(topojson.feature(us, us.objects.places).features)
 					.enter()
 					.append("text")
@@ -185,6 +197,208 @@
 					.attr("x", (d, i) => path1.centroid(d)[0])
 					.attr("y", (d, i) => path1.centroid(d)[1]);
 				
+				// Annotations
+				// CA
+				svg.append("line")
+					.attr("class", "strokes")
+					.attr("x1", 280)
+					.attr("y1", 290)
+					.attr("y2", 150)
+					.attr("x2", 50);
+
+				svg.append("rect")
+					.attr("x", 5)
+					.attr("y", 150)
+					.attr("width", 200)
+					.attr("height", 100)
+					.attr("fill", "white")
+					.attr("stroke", "gray").attr("stroke-width",".5");
+
+					svg.append("text")
+					  .attr("x", 10)
+					  .attr("y", 160)
+					  .attr("dy", ".71em").attr("font-size","15")
+					  .text("California, with a population of"); 
+
+					svg.append("text")
+					  .attr("x", 10)
+					  .attr("y", 180)
+					  .attr("dy", ".71em").attr("font-size","15")
+					  .text("39.5 million people and density "); 
+
+					svg.append("text")
+					  .attr("x", 10)
+					  .attr("y", 200)
+					  .attr("dy", ".71em").attr("font-size","15")
+					  .text("of 254 people per sq. mi. took "); 
+
+					svg.append("text")
+					  .attr("x", 10)
+					  .attr("y", 220)
+					  .attr("dy", ".71em").attr("font-size","15")
+					  .text("1st spot with 509k cases."); 
+
+				// TX
+				svg.append("line")
+					.attr("class", "strokes")
+					.attr("x1", 615)
+					.attr("y1", 449.5)
+					.attr("y2", 455)
+					.attr("x2", 200);
+
+				svg.append("rect")
+					.attr("x", 5)
+					.attr("y", 455)
+					.attr("width", 200)
+					.attr("height", 100)
+					.attr("fill", "white")
+					.attr("stroke", "gray").attr("stroke-width",".5");
+
+				svg.append("text")
+				  .attr("x", 10)
+				  .attr("y", 465)
+				  .attr("dy", ".71em").attr("font-size","15")
+				  .text("Texas, with a population of"); 
+
+				svg.append("text")
+				  .attr("x", 10)
+				  .attr("y", 485)
+				  .attr("dy", ".71em").attr("font-size","15")
+				  .text("29 million people and density "); 
+
+				svg.append("text")
+				  .attr("x", 10)
+				  .attr("y", 505)
+				  .attr("dy", ".71em").attr("font-size","15")
+				  .text("of 111 people per sq. mi. took "); 
+
+				svg.append("text")
+				  .attr("x", 10)
+				  .attr("y", 525)
+				  .attr("dy", ".71em").attr("font-size","15")
+				  .text("3rd spot with 448k cases."); 
+
+				// FL
+				svg.append("line")
+					.attr("class", "strokes")
+					.attr("x1", 975)
+					.attr("y1", 525)
+					.attr("y2", 475)
+					.attr("x2", 1100);
+
+				svg.append("rect")
+					.attr("x", 1100)
+					.attr("y", 475)
+					.attr("width", 200)
+					.attr("height", 100)
+					.attr("fill", "white")
+					.attr("stroke", "gray").attr("stroke-width",".5");
+
+				svg.append("text")
+				  .attr("x", 1105)
+				  .attr("y", 485)
+				  .attr("dy", ".71em").attr("font-size","15")
+				  .text("Florida, with a population of"); 
+
+				svg.append("text")
+				  .attr("x", 1105)
+				  .attr("y", 505)
+				  .attr("dy", ".71em").attr("font-size","15")
+				  .text("21.5 million people and density"); 
+
+				svg.append("text")
+				  .attr("x", 1105)
+				  .attr("y", 525)
+				  .attr("dy", ".71em").attr("font-size","15")
+				  .text("of 401 people per sq. mi. took "); 
+
+				svg.append("text")
+				  .attr("x", 1105)
+				  .attr("y", 545)
+				  .attr("dy", ".71em").attr("font-size","15")
+				  .text("2nd spot with 480k cases."); 
+
+				// NY
+				svg.append("line")
+					.attr("class", "strokes")
+					.attr("x1", 1033)
+					.attr("y1", 157)
+					.attr("y2", 230)
+					.attr("x2", 1100);
+
+				svg.append("rect")
+					.attr("x", 1100)
+					.attr("y", 230)
+					.attr("width", 200)
+					.attr("height", 100)
+					.attr("fill", "white")
+					.attr("stroke", "gray").attr("stroke-width",".5");
+
+				svg.append("text")
+				  .attr("x", 1105)
+				  .attr("y", 240)
+				  .attr("dy", ".71em").attr("font-size","15")
+				  .text("New York, with a population of"); 
+
+				svg.append("text")
+				  .attr("x", 1105)
+				  .attr("y", 260)
+				  .attr("dy", ".71em").attr("font-size","15")
+				  .text("19.5 million people and density "); 
+
+				svg.append("text")
+				  .attr("x", 1105)
+				  .attr("y", 280)
+				  .attr("dy", ".71em").attr("font-size","15")
+				  .text("of 413 people per sq. mi. took "); 
+
+				svg.append("text")
+				  .attr("x", 1105)
+				  .attr("y", 300)
+				  .attr("dy", ".71em").attr("font-size","15")
+				  .text("4th spot with 420k cases."); 
+
+				// NJ
+				svg.append("line")
+					.attr("class", "strokes")
+					.attr("x1", 1050)
+					.attr("y1", 230)
+					.attr("y2", 400)
+					.attr("x2", 1100);
+
+				svg.append("rect")
+					.attr("x", 1100)
+					.attr("y", 350)
+					.attr("width", 200)
+					.attr("height", 100)
+					.attr("fill", "white")
+					.attr("stroke", "gray").attr("stroke-width",".5");
+
+				svg.append("text")
+				  .attr("x", 1105)
+				  .attr("y", 360)
+				  .attr("dy", ".71em").attr("font-size","15")
+				  .text("New Jersey, with a population"); 
+
+				svg.append("text")
+				  .attr("x", 1105)
+				  .attr("y", 380)
+				  .attr("dy", ".71em").attr("font-size","15")
+				  .text("of 9 million people and density"); 
+
+				svg.append("text")
+				  .attr("x", 1105)
+				  .attr("y", 400)
+				  .attr("dy", ".71em").attr("font-size","15")
+				  .text("of 1207 people per sq. mi. took "); 
+
+				svg.append("text")
+				  .attr("x", 1105)
+				  .attr("y", 420)
+				  .attr("dy", ".71em").attr("font-size","15")
+				  .text("5th spot with 183k cases."); 
+
+				// Legend
 				var legend = svg.append("g")
 					.attr("id", "legend");
 
@@ -207,17 +421,18 @@
 					.attr("x", width - 400)
 					.attr("y", -15)
 					.text((d, i) => Math.ceil(domainCases[i]/1000) + "K" );
+
 			}
 		</script>
 	</head>
 	<body>
 		<div>
-			<h1>US States Total Covid Cases</h1>
-			<div id="next"><b>click <a href="second.html">Next</a> for comparision between states' covid data</b>
+			<h1 style="text-align: center">US States Total Covid Cases</h1>
+			<div id="next"><b>Click <a href="second.html">Next</a> for comparision between Top 10 States affected by Covid-19</b>
 			</div>
-			<svg width="1000" height="600"></svg>
-			<div class="tooltip"></div>
 			<h3>Source: New York Times</h3>
+			<svg width="1300" height="600"></svg>
+			<div class="tooltip"></div>
 		</div>
 
 		<script>
